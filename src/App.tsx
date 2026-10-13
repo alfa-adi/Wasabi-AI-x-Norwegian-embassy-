@@ -904,7 +904,9 @@ export default function App() {
                   return (
                     <div
                       key={seg.id}
-                      ref={(el) => (segmentRefs.current[seg.id] = el)}
+                      ref={(el) => {
+                        segmentRefs.current[seg.id] = el;
+                      }}
                       className={`group rounded-xl border p-5 transition duration-200 relative ${
                         isActive
                           ? 'bg-slate-900 border-indigo-500 shadow-md shadow-indigo-500/10'
