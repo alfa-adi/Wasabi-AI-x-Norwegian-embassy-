@@ -21,7 +21,6 @@ import {
   HelpCircle,
   Volume2,
   VolumeX,
-  Upload,
   RotateCcw,
   RotateCw,
   FileAudio,
@@ -45,9 +44,9 @@ export default function App() {
   const [selectedTheme, setSelectedTheme] = useState<string>('All');
   const [activeSegmentId, setActiveSegmentId] = useState<string>(TRANSCRIPT_SEGMENTS[0].id);
   
-  // Real Audio state
-  const [audioSource, setAudioSource] = useState<string | null>(null);
-  const [audioFileName, setAudioFileName] = useState<string | null>(null);
+  // Hardcoded audio source — served from public/
+  const audioSource = '/Recording_5.m4a';
+
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentPlaybackSeconds, setCurrentPlaybackSeconds] = useState<number>(0);
   const [audioDuration, setAudioDuration] = useState<number>(7784); // 129m 44s = 7784s
@@ -64,10 +63,8 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [fullTextCopied, setFullTextCopied] = useState(false);
   const [showMetadataModal, setShowMetadataModal] = useState(false);
-  const [showAudioHelpModal, setShowAudioHelpModal] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Format seconds to mm:ss or hh:mm:ss
@@ -81,61 +78,7 @@ export default function App() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Handle local audio file upload
-  const handleAudioFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // revoke previous URL if existed
-      if (audioSource) {
-        URL.revokeObjectURL(audioSource);
-      }
-      const objectUrl = URL.createObjectURL(file);
-      setAudioSource(objectUrl);
-      setAudioFileName(file.name);
-      setIsTtsMode(false);
-      window.speechSynthesis?.cancel();
-      setIsTtsSpeaking(false);
 
-      if (audioRef.current) {
-        audioRef.current.src = objectUrl;
-        audioRef.current.load();
-        audioRef.current.currentTime = currentPlaybackSeconds;
-        audioRef.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch(() => {
-          setIsPlaying(false);
-        });
-      }
-    }
-  };
-
-  // Drag and drop audio file
-  const handleDropAudio = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file && (file.type.startsWith('audio/') || file.type.startsWith('video/') || file.name.match(/\.(mp3|wav|m4a|aac|ogg|mp4|webm)$/i))) {
-      if (audioSource) {
-        URL.revokeObjectURL(audioSource);
-      }
-      const objectUrl = URL.createObjectURL(file);
-      setAudioSource(objectUrl);
-      setAudioFileName(file.name);
-      setIsTtsMode(false);
-      window.speechSynthesis?.cancel();
-      setIsTtsSpeaking(false);
-
-      if (audioRef.current) {
-        audioRef.current.src = objectUrl;
-        audioRef.current.load();
-        audioRef.current.currentTime = currentPlaybackSeconds;
-        audioRef.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch(() => {
-          setIsPlaying(false);
-        });
-      }
-    }
-  };
 
   // Synchronize active segment with currentPlaybackSeconds
   useEffect(() => {
@@ -164,7 +107,7 @@ export default function App() {
   };
 
   const togglePlayPause = () => {
-    if (audioSource && audioRef.current) {
+    if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
         setIsPlaying(false);
@@ -175,9 +118,6 @@ export default function App() {
           console.warn("Audio play prevented:", err);
         });
       }
-    } else {
-      // If no file loaded, offer TTS or open file picker
-      toggleTtsPlayback();
     }
   };
 
@@ -186,7 +126,7 @@ export default function App() {
     setCurrentPlaybackSeconds(seg.secondsStart);
     setActiveSegmentId(seg.id);
 
-    if (audioSource && audioRef.current) {
+    if (audioRef.current) {
       audioRef.current.currentTime = seg.secondsStart;
       audioRef.current.play().then(() => {
         setIsPlaying(true);
@@ -201,7 +141,7 @@ export default function App() {
   // Seek bar handler
   const handleSeek = (newTime: number) => {
     setCurrentPlaybackSeconds(newTime);
-    if (audioSource && audioRef.current) {
+    if (audioRef.current) {
       audioRef.current.currentTime = newTime;
     }
     const match = TRANSCRIPT_SEGMENTS.find(
@@ -386,23 +326,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
-      {/* Hidden real HTML5 audio element */}
+      {/* Hidden HTML5 audio element — src hardcoded to public asset */}
       <audio
         ref={audioRef}
+        src={audioSource}
         onTimeUpdate={onAudioTimeUpdate}
         onLoadedMetadata={onAudioLoadedMetadata}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
-      />
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="audio/*,video/*,.mp3,.wav,.m4a,.aac,.ogg,.mp4,.webm"
-        onChange={handleAudioFileUpload}
-        className="hidden"
       />
 
       {/* Top Banner / Event Header */}
@@ -428,23 +360,11 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Audio connection indicator button */}
-            <button
-              onClick={() => {
-                if (fileInputRef.current) fileInputRef.current.click();
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition ${
-                audioSource
-                  ? 'bg-emerald-950/60 border-emerald-700/80 text-emerald-300'
-                  : 'bg-indigo-950/60 border-indigo-700/80 text-indigo-300 hover:bg-indigo-900/60'
-              }`}
-              title={audioSource ? `Connected: ${audioFileName}` : "Select your audio file to play the original recording"}
-            >
-              {audioSource ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Upload className="w-3.5 h-3.5" />}
-              <span className="max-w-[130px] sm:max-w-[180px] truncate">
-                {audioSource ? audioFileName : 'Connect Audio File'}
-              </span>
-            </button>
+            {/* Audio status indicator */}
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border bg-emerald-950/60 border-emerald-700/80 text-emerald-300">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Recording_5.m4a</span>
+            </span>
 
             <button
               onClick={handleCopyFullTranscript}
@@ -483,14 +403,6 @@ export default function App() {
                 </button>
               </div>
             </div>
-
-            <button
-              onClick={() => setShowAudioHelpModal(true)}
-              className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition"
-              title="Audio Player Setup & Troubleshooting"
-            >
-              <HelpCircle className="w-4 h-4 text-indigo-400" />
-            </button>
           </div>
         </div>
 
@@ -560,11 +472,7 @@ export default function App() {
       </header>
 
       {/* AUDIO PLAYER CONTROLLER BAR */}
-      <div 
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDropAudio}
-        className="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-2.5 shadow-inner"
-      >
+      <div className="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-2.5 shadow-inner">
         <div className="max-w-7xl mx-auto flex flex-col gap-2.5">
           {/* Top row: Transport Controls, Timeline Scrubber, Mode Toggle, Volume */}
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -604,38 +512,22 @@ export default function App() {
 
             {/* Audio Source Status / Mode Indicator */}
             <div className="flex items-center gap-2">
-              {audioSource ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded-full">
-                  <FileAudio className="w-3 h-3" />
-                  <span>Audio File Active</span>
-                </span>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={toggleTtsPlayback}
-                    className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-lg border transition ${
-                      isTtsSpeaking
-                        ? 'bg-amber-950/70 border-amber-600 text-amber-300'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                    }`}
-                    title="Speak text aloud using browser Text-to-Speech"
-                  >
-                    <Radio className="w-3 h-3 text-amber-400 animate-pulse" />
-                    <span>{isTtsSpeaking ? 'Speaking (TTS)...' : 'Read Aloud (TTS)'}</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (fileInputRef.current) fileInputRef.current.click();
-                    }}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-lg bg-indigo-950/60 border border-indigo-800 text-indigo-300 hover:bg-indigo-900/60 transition"
-                    title="Click or drop your audio file to hear the original recording"
-                  >
-                    <Upload className="w-3 h-3" />
-                    <span>Load .mp3/.m4a</span>
-                  </button>
-                </div>
-              )}
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/70 border border-emerald-800/80 px-2 py-0.5 rounded-full">
+                <FileAudio className="w-3 h-3" />
+                <span>Audio File Active</span>
+              </span>
+              <button
+                onClick={toggleTtsPlayback}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium rounded-lg border transition ${
+                  isTtsSpeaking
+                    ? 'bg-amber-950/70 border-amber-600 text-amber-300'
+                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                }`}
+                title="Speak text aloud using browser Text-to-Speech"
+              >
+                <Radio className="w-3 h-3 text-amber-400 animate-pulse" />
+                <span>{isTtsSpeaking ? 'Speaking (TTS)...' : 'Read Aloud (TTS)'}</span>
+              </button>
             </div>
 
             {/* Playback rate & volume controls */}
@@ -716,12 +608,7 @@ export default function App() {
               <span className="text-indigo-400/90 hidden md:inline"> &mdash; "{TRANSCRIPT_SEGMENTS.find(s => s.id === activeSegmentId)?.theme}"</span>
             </div>
 
-            {!audioSource && (
-              <span className="text-[11px] text-amber-400/90 flex items-center gap-1 shrink-0">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>Tip: Drag & drop your recording file to enable exact audio playback</span>
-              </span>
-            )}
+
           </div>
         </div>
       </div>
@@ -731,47 +618,7 @@ export default function App() {
         {/* TRANSCRIPT VIEW */}
         {activeTab === 'transcript' && (
           <div className="space-y-6">
-            {/* Audio Not Connected Notice & Connect Card */}
-            {!audioSource && (
-              <div className="bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-900 border border-indigo-900/60 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-lg bg-indigo-900/40 border border-indigo-700/60 text-indigo-400 shrink-0">
-                    <FileAudio className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-200">
-                      Why was the audio silent previously?
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-                      In web browsers, audio playback requires connecting the audio file or using Text-to-Speech. You can now:
-                      <br />
-                      <strong>1. Load your local audio file:</strong> Click <span className="text-indigo-300 font-semibold underline cursor-pointer" onClick={() => fileInputRef.current?.click()}>Connect Audio File</span> (or drag & drop the audio you uploaded to chat) to hear the exact original voices synchronized with the transcript.
-                      <br />
-                      <strong>2. Instant Voice Read-Aloud (TTS):</strong> Click <span className="text-amber-300 font-semibold underline cursor-pointer" onClick={toggleTtsPlayback}>Read Aloud (TTS)</span> above to listen to any segment read out loud immediately!
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={() => {
-                      if (fileInputRef.current) fileInputRef.current.click();
-                    }}
-                    className="px-3 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/30 flex items-center gap-1.5 transition"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Choose Audio File</span>
-                  </button>
-                  <button
-                    onClick={toggleTtsPlayback}
-                    className="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-700/50 flex items-center gap-1.5 transition"
-                  >
-                    <Radio className="w-3.5 h-3.5" />
-                    <span>{isTtsSpeaking ? 'Stop TTS' : 'Play TTS'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
+  
 
             {/* Filter & Search Bar */}
             <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 shadow-sm backdrop-blur space-y-3">
@@ -1217,63 +1064,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Audio Setup / Troubleshooting Modal */}
-      {showAudioHelpModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <FileAudio className="w-5 h-5 text-indigo-400" />
-                Audio Playback Debug & Setup Guide
-              </h3>
-              <button
-                onClick={() => setShowAudioHelpModal(false)}
-                className="text-slate-400 hover:text-slate-200 text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="text-xs text-slate-300 space-y-3 leading-relaxed">
-              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                <strong className="text-indigo-300 block mb-1">Why did the player appear silent?</strong>
-                When you upload an audio file to an AI model prompt in AI Studio, the audio is analyzed in cloud server memory by the model. Browser sandbox security prevents web pages inside an iframe from directly reading files off your local drive without user selection.
-              </div>
-
-              <div className="space-y-1.5">
-                <strong className="text-slate-100 block">Two ways to hear audio now:</strong>
-                <p>
-                  <strong>Method 1: Connect your audio file (Recommended for original voices)</strong><br />
-                  Click the <em>"Connect Audio File"</em> button in the header or drag-and-drop the file from your computer into the player bar. It instantly links the actual recording with zero upload wait!
-                </p>
-                <p>
-                  <strong>Method 2: Read Aloud (Browser Speech Synthesis)</strong><br />
-                  Click <em>"Read Aloud (TTS)"</em> or the volume icon on any transcript segment to hear the speech read aloud right now without needing to locate the file.
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  setShowAudioHelpModal(false);
-                  if (fileInputRef.current) fileInputRef.current.click();
-                }}
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition flex items-center gap-1.5"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Select Audio File</span>
-              </button>
-              <button
-                onClick={() => setShowAudioHelpModal(false)}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition"
-              >
-                Got it
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Info Modal */}
       {showMetadataModal && (
