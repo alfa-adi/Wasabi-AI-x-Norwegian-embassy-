@@ -1,0 +1,6 @@
+{
+  "name": "AI for Inclusion: Roundtable Transcript & Intelligence",
+  "description": "Verbatim multi-speaker transcript, search, and thematic intelligence from the Digital at UNGA and Wasabi AI conference on AI inclusion and DPI at the Royal Norwegian Embassy.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
